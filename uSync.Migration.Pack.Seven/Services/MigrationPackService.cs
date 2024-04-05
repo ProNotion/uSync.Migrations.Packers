@@ -4,12 +4,11 @@ using System.IO.Compression;
 using System.Linq;
 
 using Jumoo.uSync.BackOffice;
-
-using Umbraco.Core.Configuration.Grid;
 using Umbraco.Core.Configuration;
 using Umbraco.Core;
 using Umbraco.Core.IO;
 using Newtonsoft.Json;
+using uSync.Migration.Pack.Seven.Serializers;
 
 namespace uSync.Migration.Pack.Seven.Services
 {
@@ -25,7 +24,7 @@ namespace uSync.Migration.Pack.Seven.Services
             _root = IOHelper.MapPath("~/uSync/MigrationPacks");
         }
 
-        public FileStream PackExport()
+        public string PackExport()
         {
             var id = Path.GetFileNameWithoutExtension(Path.GetRandomFileName());
             var folder = GetExportFolder(id);
@@ -46,12 +45,12 @@ namespace uSync.Migration.Pack.Seven.Services
             CopyScripts(folder);
 
             // make the stream
-            var stream = ZipFolder(folder);
+            var filePath = ZipFolder(folder);
 
             // clean the folder we used
             CleanFolder(folder);
 
-            return stream;
+            return filePath;
         }
 
         /// <summary>
@@ -122,14 +121,15 @@ namespace uSync.Migration.Pack.Seven.Services
 
 
         /// <summary>
-        ///  zip the folder up into return a stream 
+        ///  Zip the folder up and return a filepath to the saved file 
         /// </summary>
-        private FileStream ZipFolder(string folder)
+        private string ZipFolder(string folder)
         {
             var filename = $"migration_data_{DateTime.Now.ToString("yyyy_MM_dd_HHmmss")}.zip";
             var folderInfo = new DirectoryInfo(folder);
             var files = folderInfo.GetFiles("*.*", SearchOption.AllDirectories).ToList();
 
+            // Create a new MemoryStream and add the exported files
             var stream = new MemoryStream();
             using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, true))
             { 
@@ -141,10 +141,18 @@ namespace uSync.Migration.Pack.Seven.Services
             }
 
             stream.Seek(0, SeekOrigin.Begin);
-            var fs = new FileStream(Path.Combine(_root, filename), FileMode.Create);
-            stream.WriteTo(fs);
 
-            return fs;
+            // Create the complete filepath
+            var filePath = Path.Combine(_root, filename);
+            
+            // Write the zip file contents to a new filestream
+            using (var fs = new FileStream(filePath, FileMode.Create))
+            {
+            stream.WriteTo(fs);
+            }
+
+            // Return the path to the zip file we created
+            return filePath;
         }
 
         private void CleanFolder(string folder)
