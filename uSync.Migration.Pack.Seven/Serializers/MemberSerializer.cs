@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Linq;
 using System.Xml.Linq;
 using Umbraco.Core;
 using Umbraco.Core.Models;
@@ -11,17 +12,106 @@ namespace uSync.Migration.Pack.Seven.Serializers
     {
         private readonly IMemberService _memberService;
         private readonly IMemberGroupService _memberGroupService;
+        private readonly IMemberTypeService _memberTypeService;
 
         public MemberSerializer()
         {
             _memberService = ApplicationContext.Current.Services.MemberService;
             _memberGroupService = ApplicationContext.Current.Services.MemberGroupService;
+            _memberTypeService = ApplicationContext.Current.Services.MemberTypeService;
         }
+
+        public void SerializeMemberTypes(string folder)
+        {
+            var memberTypes = _memberTypeService.GetAll();
+
+            if (!Directory.Exists(folder))
+            {
+                Directory.CreateDirectory(folder);
+            }
+
+            foreach (var memberType in memberTypes)
+            {
+                SerializeMemberTypeToFile(memberType, folder);
+            }
+        }
+
+        private void SerializeMemberTypeToFile(IMemberType memberType, string folder)
+        {
+            var memberTypeElement = new XElement("MemberType",
+                    new XAttribute("Key", memberType.Key),
+                    new XAttribute("Alias", memberType.Alias),
+                    new XAttribute("Level", memberType.Level));
+
+                var infoElement = new XElement("Info",
+                    new XElement("Name", memberType.Name),
+                    new XElement("Icon", memberType.Icon),
+                    new XElement("Thumbnail", memberType.Thumbnail),
+                    new XElement("Description", memberType.Description),
+                    new XElement("AllowAtRoot", memberType.AllowedAsRoot),
+                    new XElement("IsListView", memberType.IsContainer),
+                    new XElement("Variations", "Nothing"), // Default to "Nothing"
+                    new XElement("IsElement", false), // Default to false
+                    new XElement("Compositions"));
+
+                memberTypeElement.Add(infoElement);
+
+                var propertiesElement = new XElement("GenericProperties");
+                foreach (var property in memberType.PropertyTypes)
+                {
+                    // Get the PropertyGroup alias
+                    var propertyGroup =
+                        memberType.PropertyGroups.FirstOrDefault(pg => pg.PropertyTypes.Contains(property));
+                    var propertyGroupAlias = propertyGroup?.Name.ToLowerInvariant().Replace(" ", "");
+
+                    var propertyElement = new XElement("GenericProperty",
+                        new XElement("Key", property.Key),
+                        new XElement("Name", property.Name),
+                        new XElement("Alias", property.Alias),
+                        new XElement("Definition", property.DataTypeDefinitionId),
+                        new XElement("Type", property.PropertyEditorAlias),
+                        new XElement("Mandatory", property.Mandatory),
+                        new XElement("Validation", property.ValidationRegExp),
+                        new XElement("Description", new XCData(property.Description)),
+                        new XElement("SortOrder", property.SortOrder),
+                        new XElement("Tab",
+                            new XAttribute("Alias",
+                                propertyGroupAlias ?? "unknown"))); // Default to "unknown" if group is null
+
+                    propertiesElement.Add(propertyElement);
+                }
+
+                memberTypeElement.Add(propertiesElement);
+
+                var tabsElement = new XElement("Tabs");
+                foreach (var propertyGroup in memberType.PropertyGroups)
+                {
+                    var tabElement = new XElement("Tab",
+                        new XElement("Key", propertyGroup.Key),
+                        new XElement("Caption", propertyGroup.Name),
+                        new XElement("Alias", propertyGroup.Name.ToLowerInvariant().Replace(" ", "")),
+                        new XElement("Type", "Group"),
+                        new XElement("SortOrder", propertyGroup.SortOrder));
+
+                    tabsElement.Add(tabElement);
+                }
+
+                memberTypeElement.Add(tabsElement);
+
+                memberTypeElement.Add(new XElement("Structure"));
+                
+            string filename = memberType.Alias.ToSafeFileName();
+            string filePath = Path.Combine(folder, filename).EnsureEndsWith(".config");
+
+            // Serialize to an XML file
+            File.WriteAllText(filePath, memberTypeElement.ToString());
+        }
+
 
         public void SerializeMembersToFile(string folder)
         {
             var members = _memberService.GetAll(0, int.MaxValue, out _);
-            
+
             if (!Directory.Exists(folder))
             {
                 Directory.CreateDirectory(folder);
