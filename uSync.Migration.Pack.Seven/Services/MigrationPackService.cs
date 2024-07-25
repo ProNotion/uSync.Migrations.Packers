@@ -33,6 +33,10 @@ namespace uSync.Migration.Pack.Seven.Services
 
             // a full uSync export
             CreateExport(Path.Combine(folder, uSyncFolder));
+            
+            // Add an export of members and member groups
+            ExportMembers(folder);
+            ExportMemberGroups(folder);
 
             // the grid.config for the site
             GetGridConfig(folder);
@@ -59,6 +63,32 @@ namespace uSync.Migration.Pack.Seven.Services
         private void CreateExport(string folder)
         {
             _ = uSyncBackOfficeContext.Instance.ExportAll(folder);
+        }
+
+        private void ExportMembers(string folder)
+        {
+            var serializer = new MemberSerializer();
+
+            // Set the uSync Data directory
+            folder = Path.Combine(folder, uSyncFolder);
+            
+            // Add the UserGroups directory to the folder path
+            folder = Path.Combine(folder, "Users");
+
+            serializer.SerializeMembersToFile(folder);
+        }
+        
+        private void ExportMemberGroups(string folder)
+        {
+            var serializer = new MemberSerializer();
+            
+            // Set the uSync Data directory
+            folder = Path.Combine(folder, uSyncFolder);
+            
+            // Add the UserGroups directory to the folder path
+            folder = Path.Combine(folder, "UserGroups");
+            
+            serializer.SerializeUserGroupsToFile(folder);
         }
 
         private void GetGridConfig(string folder)
@@ -148,7 +178,7 @@ namespace uSync.Migration.Pack.Seven.Services
             // Write the zip file contents to a new filestream
             using (var fs = new FileStream(filePath, FileMode.Create))
             {
-            stream.WriteTo(fs);
+                stream.WriteTo(fs);
             }
 
             // Return the path to the zip file we created

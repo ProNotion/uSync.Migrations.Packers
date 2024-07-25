@@ -226,6 +226,7 @@
   <ItemGroup>
     <Compile Include="Controllers\uSyncPackerApiController.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Serializers\MemberSerializer.cs" />
     <Compile Include="Services\MigrationPackService.cs" />
   </ItemGroup>
   <ItemGroup>
