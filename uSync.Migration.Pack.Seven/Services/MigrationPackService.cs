@@ -35,6 +35,10 @@ namespace uSync.Migration.Pack.Seven.Services
             // a full uSync export
             CreateExport(Path.Combine(folder, uSyncFolder));
             
+            // Add an export of users and user groups
+            ExportUsers(folder);
+            ExportUserGroups(folder);
+            
             // Add an export of members and member groups
             ExportMemberTypes(folder);
             ExportMembers(folder);
@@ -65,6 +69,34 @@ namespace uSync.Migration.Pack.Seven.Services
         private void CreateExport(string folder)
         {
             _ = uSyncBackOfficeContext.Instance.ExportAll(folder);
+        }
+        
+        private void ExportUserGroups(string folder)
+        {
+            var userService = ApplicationContext.Current.Services.UserService;
+            var serializer = new UserSerializer(userService);
+            
+            // Set the uSync Data directory
+            folder = Path.Combine(folder, uSyncFolder);
+            
+            // Add the UserGroups directory to the folder path
+            folder = Path.Combine(folder, "UserGroups");
+            
+            serializer.SerializeUserGroupsToFile(folder);
+        }
+
+        private void ExportUsers(string folder)
+        {
+            var userService = ApplicationContext.Current.Services.UserService;
+            var serializer = new UserSerializer(userService);
+
+            // Set the uSync Data directory
+            folder = Path.Combine(folder, uSyncFolder);
+            
+            // Add the UserGroups directory to the folder path
+            folder = Path.Combine(folder, "Users");
+
+            serializer.SerializeUsersToFile(folder);
         }
 
         private void ExportMemberTypes(string folder)
