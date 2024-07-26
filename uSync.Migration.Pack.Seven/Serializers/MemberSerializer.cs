@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using Umbraco.Core;
@@ -13,12 +14,14 @@ namespace uSync.Migration.Pack.Seven.Serializers
         private readonly IMemberService _memberService;
         private readonly IMemberGroupService _memberGroupService;
         private readonly IMemberTypeService _memberTypeService;
+        private readonly IDataTypeService _dataTypeService;
 
         public MemberSerializer()
         {
             _memberService = ApplicationContext.Current.Services.MemberService;
             _memberGroupService = ApplicationContext.Current.Services.MemberGroupService;
             _memberTypeService = ApplicationContext.Current.Services.MemberTypeService;
+            _dataTypeService = ApplicationContext.Current.Services.DataTypeService;
         }
 
         public void SerializeMemberTypes(string folder)
@@ -39,67 +42,73 @@ namespace uSync.Migration.Pack.Seven.Serializers
         private void SerializeMemberTypeToFile(IMemberType memberType, string folder)
         {
             var memberTypeElement = new XElement("MemberType",
-                    new XAttribute("Key", memberType.Key),
-                    new XAttribute("Alias", memberType.Alias),
-                    new XAttribute("Level", memberType.Level));
+                new XAttribute("Key", memberType.Key),
+                new XAttribute("Alias", memberType.Alias),
+                new XAttribute("Level", memberType.Level));
 
-                var infoElement = new XElement("Info",
-                    new XElement("Name", memberType.Name),
-                    new XElement("Icon", memberType.Icon),
-                    new XElement("Thumbnail", memberType.Thumbnail),
-                    new XElement("Description", memberType.Description),
-                    new XElement("AllowAtRoot", memberType.AllowedAsRoot),
-                    new XElement("IsListView", memberType.IsContainer),
-                    new XElement("Variations", "Nothing"), // Default to "Nothing"
-                    new XElement("IsElement", false), // Default to false
-                    new XElement("Compositions"));
+            var infoElement = new XElement("Info",
+                new XElement("Name", memberType.Name),
+                new XElement("Icon", memberType.Icon),
+                new XElement("Thumbnail", memberType.Thumbnail),
+                new XElement("Description", memberType.Description),
+                new XElement("AllowAtRoot", memberType.AllowedAsRoot),
+                new XElement("IsListView", memberType.IsContainer),
+                new XElement("Variations", "Nothing"), // Default to "Nothing"
+                new XElement("IsElement", false), // Default to false
+                new XElement("Compositions"));
 
-                memberTypeElement.Add(infoElement);
+            memberTypeElement.Add(infoElement);
 
-                var propertiesElement = new XElement("GenericProperties");
-                foreach (var property in memberType.PropertyTypes)
+            var propertiesElement = new XElement("GenericProperties");
+            foreach (var property in memberType.PropertyTypes)
+            {
+                var propertyGroupAlias = GetPropertyGroupAlias(memberType, property);
+
+                var propertyElement = new XElement("GenericProperty",
+                    new XElement("Key", property.Key),
+                    new XElement("Name", property.Name),
+                    new XElement("Alias", property.Alias),
+                    new XElement("Type", GetPropertyTypeAlias(property.PropertyEditorAlias)),
+                    new XElement("Mandatory", property.Mandatory),
+                    new XElement("Validation", property.ValidationRegExp),
+                    new XElement("Description", new XCData(property.Description)),
+                    new XElement("SortOrder", property.SortOrder),
+                    new XElement("Tab", new XAttribute("Alias", propertyGroupAlias ?? "unknown")),
+                    new XElement("CanEdit", false),
+                    new XElement("CanView", false),
+                    new XElement("IsSensitive", false),
+                    new XElement("MandatoryMessage", ""),
+                    new XElement("ValidationRegExpMessage", ""),
+                    new XElement("LabelOnTop", false));
+
+                var dataType = _dataTypeService.GetDataTypeDefinitionById(property.DataTypeDefinitionId);
+                if (dataType != null)
                 {
-                    // Get the PropertyGroup alias
-                    var propertyGroup =
-                        memberType.PropertyGroups.FirstOrDefault(pg => pg.PropertyTypes.Contains(property));
-                    var propertyGroupAlias = propertyGroup?.Name.ToLowerInvariant().Replace(" ", "");
-
-                    var propertyElement = new XElement("GenericProperty",
-                        new XElement("Key", property.Key),
-                        new XElement("Name", property.Name),
-                        new XElement("Alias", property.Alias),
-                        new XElement("Definition", property.DataTypeDefinitionId),
-                        new XElement("Type", property.PropertyEditorAlias),
-                        new XElement("Mandatory", property.Mandatory),
-                        new XElement("Validation", property.ValidationRegExp),
-                        new XElement("Description", new XCData(property.Description)),
-                        new XElement("SortOrder", property.SortOrder),
-                        new XElement("Tab",
-                            new XAttribute("Alias",
-                                propertyGroupAlias ?? "unknown"))); // Default to "unknown" if group is null
-
-                    propertiesElement.Add(propertyElement);
+                    propertyElement.Add(new XElement("Definition", dataType.Key));
                 }
 
-                memberTypeElement.Add(propertiesElement);
+                propertiesElement.Add(propertyElement);
+            }
 
-                var tabsElement = new XElement("Tabs");
-                foreach (var propertyGroup in memberType.PropertyGroups)
-                {
-                    var tabElement = new XElement("Tab",
-                        new XElement("Key", propertyGroup.Key),
-                        new XElement("Caption", propertyGroup.Name),
-                        new XElement("Alias", propertyGroup.Name.ToLowerInvariant().Replace(" ", "")),
-                        new XElement("Type", "Group"),
-                        new XElement("SortOrder", propertyGroup.SortOrder));
+            memberTypeElement.Add(propertiesElement);
 
-                    tabsElement.Add(tabElement);
-                }
+            var tabsElement = new XElement("Tabs");
+            foreach (var propertyGroup in memberType.PropertyGroups)
+            {
+                var tabElement = new XElement("Tab",
+                    new XElement("Key", propertyGroup.Key),
+                    new XElement("Caption", propertyGroup.Name),
+                    new XElement("Alias", propertyGroup.Name.ToLowerInvariant().Replace(" ", "")),
+                    new XElement("Type", "Group"),
+                    new XElement("SortOrder", propertyGroup.SortOrder));
 
-                memberTypeElement.Add(tabsElement);
+                tabsElement.Add(tabElement);
+            }
 
-                memberTypeElement.Add(new XElement("Structure"));
-                
+            memberTypeElement.Add(tabsElement);
+
+            memberTypeElement.Add(new XElement("Structure"));
+
             string filename = memberType.Alias.ToSafeFileName();
             string filePath = Path.Combine(folder, filename).EnsureEndsWith(".config");
 
@@ -107,6 +116,17 @@ namespace uSync.Migration.Pack.Seven.Serializers
             File.WriteAllText(filePath, memberTypeElement.ToString());
         }
 
+        private string GetPropertyTypeAlias(string propertyPropertyEditorAlias)
+        {
+            switch (propertyPropertyEditorAlias)
+            {
+                // case "WiP.SecureCheckbox":
+                //     return Constants.PropertyEditors.TrueFalseAlias;
+                // case "WiP.Secure"
+            }
+
+            return propertyPropertyEditorAlias;
+        }
 
         public void SerializeMembersToFile(string folder)
         {
