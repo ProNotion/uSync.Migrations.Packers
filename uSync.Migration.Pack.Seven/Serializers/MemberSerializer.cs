@@ -136,10 +136,25 @@ namespace uSync.Migration.Pack.Seven.Serializers
             {
                 Directory.CreateDirectory(folder);
             }
-            
+
             foreach (var member in members)
             {
                 SerializeMemberToFile(member, folder);
+            }
+        }
+
+        public void SerializeMemberGroupsToFile(string folder)
+        {
+            var allGroups = _memberGroupService.GetAll();
+
+            if (!Directory.Exists(folder))
+            {
+                Directory.CreateDirectory(folder);
+            }
+
+            foreach (var group in allGroups)
+            {
+                SerializeMemberGroupToFile(group, folder);
             }
         }
 
@@ -187,23 +202,28 @@ namespace uSync.Migration.Pack.Seven.Serializers
             File.WriteAllText(filePath, memberElement.ToString());
         }
 
-        public void SerializeUserGroupsToFile(string folder)
+        public void SerializeMemberGroupToFile(IMemberGroup group, string folder)
         {
-            var allGroups = _memberGroupService.GetAll();
-            foreach (var group in allGroups)
-            {
-                var groupElement = new XElement("UserGroup",
-                    new XElement("Key", group.Key),
-                    new XElement("Name", group.Name),
-                    new XElement("CreateDate", group.CreateDate.ToString("o")),
-                    new XElement("UpdateDate", group.UpdateDate.ToString("o")));
-                
-                var groupXml = groupElement.ToString();
-                string filename = group.Name.ToSafeFileName();
-                string filePath = Path.Combine(folder, filename).EnsureEndsWith(".config");
-                
-                File.WriteAllText(filePath, groupXml);
-            }
+            var groupElement = new XElement("MemberGroup",
+                new XAttribute("Key", group.Key),
+                new XAttribute("Alias", group.Name.ToSafeAlias()),
+                new XElement("Name", group.Name),
+                new XElement("CreateDate", group.CreateDate.ToString("o")),
+                new XElement("UpdateDate", group.UpdateDate.ToString("o"))
+            );
+
+            string filename = group.Name.ToSafeFileName();
+            string filePath = Path.Combine(folder, filename).EnsureEndsWith(".config");
+
+            File.WriteAllText(filePath, groupElement.ToString());
+        }
+
+        private string GetPropertyGroupAlias(IMemberType memberType, PropertyType property)
+        {
+            var propertyGroup =
+                memberType.PropertyGroups.FirstOrDefault(pg => pg.PropertyTypes.Contains(property));
+            var propertyGroupAlias = propertyGroup?.Name.ToLowerInvariant().Replace(" ", "");
+            return propertyGroupAlias;
         }
     }
 }

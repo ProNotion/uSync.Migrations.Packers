@@ -100,9 +100,9 @@ namespace uSync.Migration.Pack.Seven.Services
             folder = Path.Combine(folder, uSyncFolder);
             
             // Add the UserGroups directory to the folder path
-            folder = Path.Combine(folder, "UserGroups");
+            folder = Path.Combine(folder, "MemberGroups");
             
-            serializer.SerializeUserGroupsToFile(folder);
+            serializer.SerializeMemberGroupsToFile(folder);
         }
 
         private void GetGridConfig(string folder)
