@@ -87,7 +87,7 @@ namespace uSync.Migration.Pack.Seven.Services
             folder = Path.Combine(folder, uSyncFolder);
             
             // Add the UserGroups directory to the folder path
-            folder = Path.Combine(folder, "Users");
+            folder = Path.Combine(folder, "Members");
 
             serializer.SerializeMembersToFile(folder);
         }
