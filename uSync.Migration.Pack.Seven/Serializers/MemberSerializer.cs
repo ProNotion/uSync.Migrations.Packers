@@ -163,27 +163,51 @@ namespace uSync.Migration.Pack.Seven.Serializers
             if (member == null) return;
 
             var memberElement = new XElement("Member",
-                new XElement("Key", member.Key),
-                new XElement("Name", member.Name),
-                new XElement("Username", member.Username),
+                new XAttribute("Key", member.Key),
+                new XAttribute("Alias", member.Email),
+                new XAttribute("Level", 1));
+
+            var infoElement = new XElement("Info",
+                new XElement("Parent", Guid.Empty),
+                new XElement("Path", member.Name.ToSafeAlias()),
+                new XElement("Trashed", false),
+                new XElement("ContentType", member.ContentType.Alias),
+                new XElement("CreateDate", member.CreateDate.ToString("o")),
+                new XElement("NodeName", new XAttribute("Default", member.Name)),
+                new XElement("SortOrder", 0),
                 new XElement("Email", member.Email),
-                new XElement("PasswordHash", member.RawPasswordValue),
-                new XElement("PasswordSalt", ""), // You may need to handle password salt if used
-                new XElement("IsApproved", member.IsApproved),
-                new XElement("IsLockedOut", member.IsLockedOut),
-                new XElement("LastLoginDate", member.LastLoginDate.ToString("o")),
-                new XElement("LastPasswordChangeDate", member.LastPasswordChangeDate.ToString("o")),
-                new XElement("LastLockoutDate", member.LastLockoutDate.ToString("o")),
-                new XElement("FailedPasswordAttempts", member.FailedPasswordAttempts));
+                new XElement("Username", member.Username),
+                new XElement("MemberType", member.ContentTypeAlias),
+                new XElement("RawPassword", member.RawPasswordValue));
+
+
+            if (member.LastLoginDate != DateTime.MinValue)
+            {
+                infoElement.Add(new XElement("LastLoginDate", member.LastLoginDate.ToString("o")));
+            }
+
+            if (member.LastPasswordChangeDate != DateTime.MinValue)
+            {
+                infoElement.Add(new XElement("LastPasswordChangeDate", member.LastPasswordChangeDate.ToString("o")));
+            }
+
+            if (member.LastLockoutDate != DateTime.MinValue)
+            {
+                infoElement.Add(new XElement("LastLockoutDate", member.LastLockoutDate.ToString("o")));
+            }
+
+            memberElement.Add(infoElement);
 
             var propertiesElement = new XElement("Properties");
             foreach (var property in member.Properties)
             {
-                var propertyElement = new XElement("Property",
-                    new XAttribute("alias", property.Alias),
-                    new XElement("Value", property.Value));
+                var propertyElement = new XElement(property.Alias,
+                    new XElement("Value", new XCData(property.Value?.ToString() ?? string.Empty)));
+
                 propertiesElement.Add(propertyElement);
             }
+
+            memberElement.Add(propertiesElement);
 
             var groupsElement = new XElement("Groups");
             var memberGroups = _memberService.GetAllRoles(member.Username);
@@ -192,12 +216,11 @@ namespace uSync.Migration.Pack.Seven.Serializers
                 groupsElement.Add(new XElement("Group", group));
             }
 
-            memberElement.Add(propertiesElement);
             memberElement.Add(groupsElement);
-            
+
             string filename = member.Email.ToSafeFileName();
             string filePath = Path.Combine(folder, filename).EnsureEndsWith(".config");
-            
+
             // Serialize to an XML file
             File.WriteAllText(filePath, memberElement.ToString());
         }

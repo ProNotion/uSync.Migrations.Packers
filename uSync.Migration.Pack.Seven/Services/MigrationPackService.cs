@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Linq;
 
 using Jumoo.uSync.BackOffice;
+using Jumoo.uSync.Core.Serializers;
 using Umbraco.Core.Configuration;
 using Umbraco.Core;
 using Umbraco.Core.IO;
